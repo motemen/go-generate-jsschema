@@ -11,7 +11,15 @@ type User struct {
 	NamedNotRequired string `json:"nickname,omitempty"`
 	NotRequired      string `json:",omitempty"`
 	Hidden           string `json:"-"`
+	Status           UserStatus
 }
+
+type UserStatus string
+
+const (
+	UserStatusActive   UserStatus = "active"
+	UserStatusInactive UserStatus = "inactive"
+)
 
 func Foo() {
 }

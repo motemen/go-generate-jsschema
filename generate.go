@@ -2,6 +2,7 @@ package generatejsschema
 
 import (
 	"go/ast"
+	"go/constant"
 	"go/parser"
 	"go/token"
 	"go/types"
@@ -63,14 +64,74 @@ func (g *Generator) FromArgs(args []string) error {
 	return nil
 }
 
-func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Schema, error) {
-	debugf("processType: %s", typ)
+func constantValue(con *types.Const) interface{} {
+	switch con.Type().Underlying().(*types.Basic).Kind() {
+	case types.Bool, types.UntypedBool:
+		return constant.BoolVal(con.Val())
 
+	case types.Complex64, types.Complex128, types.UntypedComplex:
+		panic("not implemented")
+
+	case types.Float32:
+		f, _ := constant.Float32Val(con.Val())
+		return f
+
+	case types.Float64, types.UntypedFloat:
+		f, _ := constant.Float64Val(con.Val())
+		return f
+
+	case types.Int, types.Int8, types.Int16, types.Int32, types.Int64, types.UntypedInt:
+		n, _ := constant.Int64Val(con.Val())
+		return n
+
+	case types.Invalid:
+		panic("unreachable")
+
+	case types.String, types.UntypedString:
+		return constant.StringVal(con.Val())
+
+	case types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.UntypedRune:
+		n, _ := constant.Uint64Val(con.Val())
+		return n
+
+	case types.Uintptr:
+		panic("not implemented")
+
+	case types.UnsafePointer:
+		panic("not implemented")
+
+	case types.UntypedNil:
+		return nil
+
+	default:
+		panic("unreachable")
+	}
+}
+
+func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Schema, error) {
 	switch typ := typ.(type) {
 	case *types.Array:
 		debugf("not implemented")
 	case *types.Basic:
-		return g.processBasicType(typ)
+		schema, err := g.processBasicType(typ)
+		if err != nil {
+			return nil, err
+		}
+
+		enum := []interface{}{}
+		for _, pkg := range g.program.InitialPackages() {
+			for ident, o := range pkg.Defs {
+				if con, ok := o.(*types.Const); ok && o.Type() == obj.Type() {
+					enum = append(enum, constantValue(con))
+					debugf("%s: %s %s", ident, o.Type(), obj.Type())
+				}
+			}
+		}
+		if len(enum) > 0 {
+			schema.Enum = enum
+		}
+		return schema, nil
+
 	case *types.Chan:
 		debugf("not implemented")
 	case *types.Interface:
@@ -78,7 +139,11 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 	case *types.Map:
 		debugf("not implemented")
 	case *types.Named:
-		debugf("not implemented")
+		schema := jsschema.New()
+		schema.Reference = "#/definitions/" + typ.Obj().Name()
+		schema.AdditionalItems = &jsschema.AdditionalItems{}
+		schema.AdditionalProperties = &jsschema.AdditionalProperties{}
+		return schema, nil
 	case *types.Pointer:
 		debugf("not implemented")
 	case *types.Signature:
@@ -98,6 +163,7 @@ func (g *Generator) processStructType(st *types.Struct, obj types.Object) (*jssc
 	schema := jsschema.New()
 	schema.Properties = map[string]*jsschema.Schema{}
 	schema.Description = g.docStringAtPos(obj.Pos())
+	schema.Type = jsschema.PrimitiveTypes{jsschema.ObjectType}
 
 	for i := 0; i < st.NumFields(); i++ {
 		field := st.Field(i)
