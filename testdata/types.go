@@ -14,6 +14,8 @@ type User struct {
 	Status           UserStatus
 }
 
+type UserMap map[string]User
+
 type UserStatus string
 
 const (

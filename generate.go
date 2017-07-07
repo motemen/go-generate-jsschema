@@ -112,6 +112,7 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 	switch typ := typ.(type) {
 	case *types.Array:
 		debugf("not implemented")
+
 	case *types.Basic:
 		schema, err := g.processBasicType(typ)
 		if err != nil {
@@ -120,38 +121,55 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 
 		enum := []interface{}{}
 		for _, pkg := range g.program.InitialPackages() {
-			for ident, o := range pkg.Defs {
+			for _, o := range pkg.Defs {
 				if con, ok := o.(*types.Const); ok && o.Type() == obj.Type() {
 					enum = append(enum, constantValue(con))
-					debugf("%s: %s %s", ident, o.Type(), obj.Type())
 				}
 			}
 		}
 		if len(enum) > 0 {
 			schema.Enum = enum
 		}
+
 		return schema, nil
 
 	case *types.Chan:
 		debugf("not implemented")
+
 	case *types.Interface:
 		debugf("not implemented")
+
 	case *types.Map:
-		debugf("not implemented")
+		propSchema, err := g.processType(typ.Elem(), obj)
+		if err != nil {
+			return nil, err
+		}
+
+		schema := jsschema.New()
+		schema.AdditionalItems = &jsschema.AdditionalItems{}
+		schema.AdditionalProperties = &jsschema.AdditionalProperties{
+			propSchema,
+		}
+		return schema, nil
+
 	case *types.Named:
 		schema := jsschema.New()
 		schema.Reference = "#/definitions/" + typ.Obj().Name()
 		schema.AdditionalItems = &jsschema.AdditionalItems{}
 		schema.AdditionalProperties = &jsschema.AdditionalProperties{}
 		return schema, nil
+
 	case *types.Pointer:
-		debugf("not implemented")
+		return g.processType(typ.Elem(), obj)
+
 	case *types.Signature:
 		debugf("not implemented")
 	case *types.Slice:
 		debugf("not implemented")
+
 	case *types.Struct:
 		return g.processStructType(typ, obj)
+
 	case *types.Tuple:
 		debugf("not implemented")
 	}
@@ -252,6 +270,7 @@ func (g *Generator) docStringAtPos(pos token.Pos) string {
 		case *ast.Field:
 			comment = node.Doc
 			goto last
+
 		case *ast.GenDecl:
 			comment = node.Doc
 			goto last
