@@ -108,6 +108,45 @@ func constantValue(con *types.Const) interface{} {
 	}
 }
 
+func (g *Generator) enumValuesForType(typ types.Type) []interface{} {
+	var enum []interface{}
+	for _, pkg := range g.program.InitialPackages() {
+		for _, f := range pkg.Files {
+			ast.Inspect(f, func(node ast.Node) bool {
+				// for each constant decalaration ...
+				decl, ok := node.(*ast.GenDecl)
+				if !ok || decl.Tok != token.CONST {
+					return true
+				}
+
+				for _, spec := range decl.Specs {
+					spec := spec.(*ast.ValueSpec) // must succeed (so I think)
+
+					// the constants' type is a named type
+					tn, ok := spec.Type.(*ast.Ident)
+					if !ok {
+						continue
+					}
+
+					// and the named type equals to the type in question
+					if tno := pkg.Uses[tn]; tno == nil || tno.Type() != typ {
+						continue
+					}
+
+					// then, the constant values are counted as enum values of the typ
+					for _, name := range spec.Names {
+						con := pkg.ObjectOf(name).(*types.Const) // must succeed (so I think)
+						enum = append(enum, constantValue(con))
+					}
+				}
+
+				return true
+			})
+		}
+	}
+	return enum
+}
+
 func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Schema, error) {
 	switch typ := typ.(type) {
 	case *types.Array:
@@ -119,14 +158,7 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 			return nil, err
 		}
 
-		enum := []interface{}{}
-		for _, pkg := range g.program.InitialPackages() {
-			for _, o := range pkg.Defs {
-				if con, ok := o.(*types.Const); ok && o.Type() == obj.Type() {
-					enum = append(enum, constantValue(con))
-				}
-			}
-		}
+		enum := g.enumValuesForType(obj.Type())
 		if len(enum) > 0 {
 			schema.Enum = enum
 		}

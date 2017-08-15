@@ -1,7 +1,7 @@
 package generatejsschema
 
 import (
-	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -12,6 +12,11 @@ func TestFromArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b, _ := json.Marshal(g.Schema)
-	t.Log(string(b))
+	if got, expected := g.Schema.Definitions["User"].Description, "User is a data type for user"; got != expected {
+		t.Errorf("User/Description: got %v != %v", got, expected)
+	}
+
+	if got, expected := fmt.Sprint(g.Schema.Definitions["UserStatus"].Enum), "[active inactive]"; got != expected {
+		t.Errorf("UserStatus/Enum: got %v != %v", got, expected)
+	}
 }
