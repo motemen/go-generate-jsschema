@@ -12,11 +12,18 @@ type User struct {
 	NotRequired      string `json:",omitempty"`
 	Hidden           string `json:"-"`
 	Status           UserStatus
+	Tags             []string
+	Items            []*Item
 }
 
 type UserMap map[string]User
 
 type UserStatus string
+
+type Item struct {
+	Name  string
+	Count int
+}
 
 const (
 	UserStatusActive   UserStatus = "active"

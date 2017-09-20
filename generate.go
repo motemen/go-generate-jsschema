@@ -197,8 +197,19 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 
 	case *types.Signature:
 		debugf("not implemented")
+
 	case *types.Slice:
-		debugf("not implemented")
+		itemSchema, err := g.processType(typ.Elem(), obj)
+		if err != nil {
+			return nil, err
+		}
+
+		schema := jsschema.New()
+		schema.Type = jsschema.PrimitiveTypes{jsschema.ArrayType}
+		schema.Items = &jsschema.ItemSpec{
+			Schemas: jsschema.SchemaList{itemSchema},
+		}
+		return schema, nil
 
 	case *types.Struct:
 		return g.processStructType(typ, obj)
@@ -207,7 +218,7 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 		debugf("not implemented")
 	}
 
-	return nil, errors.Errorf("not implemented for: %s", obj)
+	return nil, errors.Errorf("not implemented for: %s (type: %T)", obj, typ)
 }
 
 func (g *Generator) processStructType(st *types.Struct, obj types.Object) (*jsschema.Schema, error) {
