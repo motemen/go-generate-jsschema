@@ -178,6 +178,7 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 		}
 
 		schema := jsschema.New()
+		schema.Type = jsschema.PrimitiveTypes{jsschema.ObjectType}
 		schema.AdditionalItems = &jsschema.AdditionalItems{}
 		schema.AdditionalProperties = &jsschema.AdditionalProperties{
 			propSchema,
