@@ -14,6 +14,11 @@ type User struct {
 	Status           UserStatus
 	Tags             []string
 	Items            []*Item
+	*Embedded
+}
+
+type Embedded struct {
+	ID uint64
 }
 
 type UserMap map[string]User

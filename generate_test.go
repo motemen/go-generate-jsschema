@@ -35,4 +35,8 @@ func TestFromArgs(t *testing.T) {
 		testEqual(t, schema.Definitions["User"].Properties["Items"].Type, jsschema.PrimitiveTypes{jsschema.ArrayType})
 		testEqual(t, schema.Definitions["User"].Properties["Items"].Items.Schemas[0].Reference, "#/definitions/Item")
 	})
+
+	t.Run("embedded", func(t *testing.T) {
+		testEqual(t, schema.Definitions["User"].Properties["ID"].Type, jsschema.PrimitiveTypes{jsschema.IntegerType})
+	})
 }

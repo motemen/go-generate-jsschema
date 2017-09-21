@@ -54,7 +54,7 @@ func (g *Generator) FromArgs(args []string) error {
 			}
 
 			var err error
-			g.Schema.Definitions[tn.Name()], err = g.processType(tn.Type().Underlying(), obj)
+			g.Schema.Definitions[tn.Name()], err = g.processType(tn.Type().Underlying(), obj, false)
 			if err != nil {
 				return err
 			}
@@ -147,7 +147,7 @@ func (g *Generator) enumValuesForType(typ types.Type) []interface{} {
 	return enum
 }
 
-func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Schema, error) {
+func (g *Generator) processType(typ types.Type, obj types.Object, noRef bool) (*jsschema.Schema, error) {
 	switch typ := typ.(type) {
 	case *types.Array:
 		debugf("not implemented")
@@ -172,7 +172,7 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 		debugf("not implemented")
 
 	case *types.Map:
-		propSchema, err := g.processType(typ.Elem(), obj)
+		propSchema, err := g.processType(typ.Elem(), obj, noRef)
 		if err != nil {
 			return nil, err
 		}
@@ -186,20 +186,24 @@ func (g *Generator) processType(typ types.Type, obj types.Object) (*jsschema.Sch
 		return schema, nil
 
 	case *types.Named:
-		schema := jsschema.New()
-		schema.Reference = "#/definitions/" + typ.Obj().Name()
-		schema.AdditionalItems = &jsschema.AdditionalItems{}
-		schema.AdditionalProperties = &jsschema.AdditionalProperties{}
-		return schema, nil
+		if noRef {
+			return g.processType(typ.Underlying(), obj, noRef)
+		} else {
+			schema := jsschema.New()
+			schema.Reference = "#/definitions/" + typ.Obj().Name()
+			schema.AdditionalItems = &jsschema.AdditionalItems{}
+			schema.AdditionalProperties = &jsschema.AdditionalProperties{}
+			return schema, nil
+		}
 
 	case *types.Pointer:
-		return g.processType(typ.Elem(), obj)
+		return g.processType(typ.Elem(), obj, noRef)
 
 	case *types.Signature:
 		debugf("not implemented")
 
 	case *types.Slice:
-		itemSchema, err := g.processType(typ.Elem(), obj)
+		itemSchema, err := g.processType(typ.Elem(), obj, noRef)
 		if err != nil {
 			return nil, err
 		}
@@ -233,27 +237,39 @@ func (g *Generator) processStructType(st *types.Struct, obj types.Object) (*jssc
 			continue
 		}
 
-		propSchema, err := g.processType(field.Type(), field)
-		if err != nil {
-			return nil, err
-		}
-
 		tag := reflect.StructTag(st.Tag(i)).Get("json")
 		if tag == "-" {
 			continue
 		}
 
-		name, opts := parseTag(tag)
-		if name == "" {
-			name = field.Name()
-		}
+		if field.Anonymous() {
+			propSchema, err := g.processType(field.Type(), field, true)
+			if err != nil {
+				return nil, err
+			}
+			for name, p := range propSchema.Properties {
+				schema.Properties[name] = p
+			}
+			schema.Required = append(schema.Required, propSchema.Required...)
 
-		propSchema.Description = g.docStringAtPos(field.Pos())
+		} else {
+			propSchema, err := g.processType(field.Type(), field, false)
+			if err != nil {
+				return nil, err
+			}
 
-		schema.Properties[name] = propSchema
+			name, opts := parseTag(tag)
+			if name == "" {
+				name = field.Name()
+			}
 
-		if !opts.Contains("omitempty") {
-			schema.Required = append(schema.Required, name)
+			propSchema.Description = g.docStringAtPos(field.Pos())
+
+			schema.Properties[name] = propSchema
+
+			if !opts.Contains("omitempty") {
+				schema.Required = append(schema.Required, name)
+			}
 		}
 	}
 
